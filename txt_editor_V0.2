@@ -1,0 +1,685 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Enhanced Text Editor</title>
+    <link rel="icon" type="image/png" href="txt_tab_disp.png">
+    <style>
+        :root {
+            --bg-dark: #1e1e1e;
+            --text-dark: #d4d4d4;
+            --bg-light: #ffffff;
+            --text-light: #000000;
+            --menu-bg-dark: #2d2d2d;
+            --menu-bg-light: #f0f0f0;
+            --tools-bg-dark: #252526;
+            --tools-bg-light: #e8e8e8;
+            --hover-dark: #444;
+            --hover-light: #ddd;
+            --accent-color: #007acc;
+            --error-red: #ff4444;
+            --success-green: #44ff44;
+            --editor-font-size: 16px;
+        }
+
+        .light-theme {
+            --bg-dark: var(--bg-light);
+            --text-dark: var(--text-light);
+            --menu-bg-dark: var(--menu-bg-light);
+            --hover-dark: var(--hover-light);
+        }
+
+        body, html {
+            margin: 0;
+            padding: 0;
+            height: 100%;
+            font-family: 'Segoe UI', sans-serif;
+            background-color: var(--bg-dark);
+            color: var(--text-dark);
+            transition: background-color 0.3s, color 0.3s;
+        }
+
+        .menu-bar {
+            display: flex;
+            background-color: var(--menu-bg-dark);
+            padding: 0.5rem 1rem;
+            gap: 1rem;
+            border-bottom: 1px solid var(--hover-dark);
+        }
+
+        .menu-item {
+            position: relative;
+            cursor: pointer;
+            padding: 0.5rem;
+            border-radius: 3px;
+            user-select: none;
+        }
+
+        .menu-item:hover {
+            background-color: var(--hover-dark);
+        }
+
+        .dropdown {
+            display: none;
+            position: absolute;
+            top: 100%;
+            left: 0;
+            min-width: 200px;
+            background-color: var(--menu-bg-dark);
+            border: 1px solid var(--hover-dark);
+            box-shadow: 0 2px 8px rgba(0,0,0,0.2);
+            z-index: 1000;
+        }
+
+        .menu-item:hover > .dropdown {
+            display: block;
+        }
+
+        .dropdown-item {
+            padding: 0.75rem 1rem;
+            cursor: pointer;
+            transition: background-color 0.2s;
+            position: relative;
+        }
+
+        .dropdown-item:hover {
+            background-color: var(--hover-dark);
+        }
+
+        .sub-menus .dropdown {
+            left: 100%;
+            top: 0;
+            margin-left: 0.5rem;
+            opacity: 0;
+            transform: translateX(-10px);
+            transition: opacity 0.2s, transform 0.2s;
+        }
+
+        .sub-menus:hover .dropdown {
+            opacity: 1;
+            transform: translateX(0);
+            display: block;
+        }
+
+        .split-container {
+            display: flex;
+            height: calc(100vh - 40px);
+        }
+
+        .editor-wrapper {
+            flex: 1;
+            position: relative;
+            display: flex;
+            overflow: hidden;
+        }
+
+        .line-numbers {
+            width: 2.5rem;
+            padding: 0.5rem;
+            background-color: var(--menu-bg-dark);
+            color: var(--text-dark);
+            text-align: right;
+            font-family: monospace;
+            user-select: none;
+            line-height: 1.5;
+            overflow-y: auto;
+            border-right: 1px solid var(--hover-dark);
+        }
+
+        #textEditor {
+            flex: 1;
+            padding: 1rem;
+            font-size: var(--editor-font-size);
+            line-height: 1.5;
+            border: none;
+            outline: none;
+            background-color: transparent;
+            color: inherit;
+            white-space: pre-wrap;
+            tab-size: 4;
+            resize: none;
+            overflow-y: auto;
+        }
+
+        .find-replace-popup {
+            position: fixed;
+            bottom: 1.25rem;
+            left: 1.25rem;
+            background-color: var(--menu-bg-dark);
+            padding: 1rem;
+            border-radius: 5px;
+            box-shadow: 0 2px 8px rgba(0,0,0,0.2);
+            display: none;
+            gap: 0.5rem;
+            z-index: 1001;
+        }
+
+        .hidden-file-input {
+            display: none;
+        }
+
+        .match {
+            background-color: rgba(255, 255, 0, 0.3);
+        }
+
+        .current-match {
+            background-color: rgba(255, 165, 0, 0.5);
+        }
+
+        .match-count {
+            margin-left: 1rem;
+            font-size: 0.9em;
+            color: var(--text-dark);
+        }
+
+        .current-line-highlight {
+            position: absolute;
+            left: 40px;
+            right: 0;
+            height: 1.5em;
+            background-color: rgba(45, 45, 45, 0.1);
+            pointer-events: none;
+            transition: top 0.1s ease;
+        }
+
+        /* Toolbar Styles */
+        .tools-bar {
+            display: flex;
+            gap: 10px;
+            padding: 8px;
+            background-color: var(--tools-bg-dark);
+            border-bottom: 1px solid var(--hover-dark);
+        }
+
+        .light-theme .tools-bar {
+            background-color: var(--tools-bg-light);
+            border-color: var(--hover-light);
+        }
+
+        .tools-bar button {
+            background: none;
+            border: 1px solid transparent;
+            padding: 5px 10px;
+            cursor: pointer;
+            border-radius: 3px;
+            color: inherit;
+        }
+
+        .tools-bar button:hover {
+            border-color: var(--hover-dark);
+        }
+
+        .light-theme .tools-bar button:hover {
+            border-color: var(--hover-light);
+        }
+
+        .tools-bar select,
+        .tools-bar input[type="color"] {
+            background-color: var(--bg-dark);
+            border: 1px solid var(--hover-dark);
+            color: var(--text-dark);
+            padding: 3px;
+            border-radius: 3px;
+        }
+
+        .light-theme .tools-bar select,
+        .light-theme .tools-bar input[type="color"] {
+            background-color: var(--bg-light);
+            border-color: var(--hover-light);
+        }
+    </style>
+</head>
+<body>
+    <div class="container">
+        <header class="menu-bar" role="menubar">
+            <div class="menu-item">
+                File
+                <div class="dropdown">
+                    <div class="dropdown-item" data-action="new">New File</div>
+                    <div class="dropdown-item" data-action="open">Import</div>
+                    <div class="dropdown-item" data-action="exp-txt">Export as .txt</div>
+                    <div class="dropdown-item" data-action="exp-html">Export as .html</div>
+                </div>
+            </div>
+
+            <div class="menu-item">
+                Edit
+                <div class="dropdown">
+                    <div class="dropdown-item" data-action="undo">Undo</div>
+                    <div class="dropdown-item" data-action="redo">Redo</div>
+                    <div class="dropdown-item" data-action="find">Find / Replace</div>
+                </div>
+            </div>
+
+            <div class="menu-item">
+                Settings
+                <div class="dropdown">
+                    <div class="dropdown-item">
+                        <label>
+                            <input type="checkbox" id="lineNumbersToggle" checked>
+                            Line Numbers
+                        </label>
+                    </div>
+                    <div class="dropdown-item" data-action="theme-dark">Dark Mode</div>
+                    <div class="dropdown-item" data-action="theme-light">Light Mode</div>
+                </div>
+            </div>
+        </header>
+
+        <!-- Toolbar -->
+        <div class="tools-bar">
+            <button data-command="bold"><strong>B</strong></button>
+            <button data-command="italic"><em>I</em></button>
+            <button data-command="underline"><u>U</u></button>
+            <select id="font-select">
+                <option value="Arial">Arial</option>
+                <option value="Courier New">Courier New</option>
+                <option value="Georgia">Georgia</option>
+                <option value="Times New Roman">Times New Roman</option>
+            </select>
+            <input type="color" id="text-color" title="Text Color">
+            <input type="color" id="highlight-color" title="Highlight Color">
+        </div>
+
+        <div class="split-container" id="mainContainer">
+            <div class="editor-wrapper">
+                <div class="line-numbers" id="lineNumbers">1</div>
+                <div class="current-line-highlight" id="currentLine"></div>
+                <div id="textEditor" contenteditable="true" spellcheck="false"></div>
+            </div>
+        </div>
+
+        <!-- Find/Replace Popup -->
+        <div class="find-replace-popup" id="findReplacePopup">
+            <div class="popup-header">
+                <button id="closeFindButton" aria-label="Close">×</button>
+                <h3>Find/Replace</h3>
+            </div>
+            <div class="popup-body">
+                <input type="text" id="findInput" placeholder="Find...">
+                <div class="button-group">
+                    <button id="findPrevButton">←</button>
+                    <button id="findNextButton">→</button>
+                    <button id="replaceButton">Replace</button>
+                </div>
+                <input type="text" id="replaceInput" placeholder="Replace...">
+                <div class="button-group">
+                    <button id="replaceAllButton">Replace All</button>
+                </div>
+                <label>
+                    <input type="checkbox" id="matchCase"> Match Case
+                </label>
+                <label>
+                    <input type="checkbox" id="wholeWord"> Whole Word
+                </label>
+                <div class="match-count" id="matchCount"></div>
+            </div>
+        </div>
+
+        <div class="file-name-display" id="fileNameDisplay">
+            Current File: <span id="currentFileName">untitled.txt</span>
+        </div>
+
+        <input type="file" class="hidden-file-input" id="fileInput">
+    </div>
+
+    <script>
+        class EnhancedTextEditor {
+            constructor() {
+                this.editor = document.getElementById('textEditor');
+                this.lineNumbers = document.getElementById('lineNumbers');
+                this.currentLine = document.getElementById('currentLine');
+                this.findReplacePopup = document.getElementById('findReplacePopup');
+                this.findInput = document.getElementById('findInput');
+                this.replaceInput = document.getElementById('replaceInput');
+                this.matchCase = document.getElementById('matchCase');
+                this.wholeWord = document.getElementById('wholeWord');
+                this.matchCount = document.getElementById('matchCount');
+                this.lineNumbersToggle = document.getElementById('lineNumbersToggle');
+                this.fileNameDisplay = document.getElementById('currentFileName');
+                this.fontSelect = document.getElementById('font-select');
+                this.textColor = document.getElementById('text-color');
+                this.highlightColor = document.getElementById('highlight-color');
+
+                this.matches = [];
+                this.currentMatchIndex = -1;
+                this.fontSize = 16;
+                this.history = [];
+                this.historyIndex = -1;
+                this.currentFile = 'untitled.txt';
+
+                this.initialize();
+            }
+
+            initialize() {
+                this.setupEventListeners();
+                this.setupMenuInteractions();
+                this.setupToolbarListeners();
+                this.restoreSettings();
+                this.setInitialContent();
+                this.updateLineNumbers();
+            }
+
+            setupEventListeners() {
+                this.editor.addEventListener('input', () => {
+                    this.updateLineNumbers();
+                    this.updateCurrentLinePosition();
+                    this.pushHistory();
+                });
+
+                this.editor.addEventListener('scroll', () => {
+                    this.lineNumbers.scrollTop = this.editor.scrollTop;
+                    this.updateCurrentLinePosition();
+                });
+
+                this.editor.addEventListener('click', () => {
+                    this.updateCurrentLinePosition();
+                });
+
+                this.findInput.addEventListener('input', () => this.updateMatches());
+                this.matchCase.addEventListener('change', () => this.updateMatches());
+                this.wholeWord.addEventListener('change', () => this.updateMatches());
+
+                document.getElementById('fileInput').addEventListener('change', (e) => this.handleFileImport(e));
+                document.getElementById('findNextButton').addEventListener('click', () => this.handleFindNext());
+                document.getElementById('findPrevButton').addEventListener('click', () => this.handleFindPrev());
+                document.getElementById('replaceButton').addEventListener('click', () => this.handleReplace());
+                document.getElementById('replaceAllButton').addEventListener('click', () => this.handleReplaceAll());
+                document.getElementById('closeFindButton').addEventListener('click', () => this.closeFindReplace());
+                document.addEventListener('keydown', (e) => this.handleKeyPress(e));
+                this.lineNumbersToggle.addEventListener('change', (e) => this.toggleLineNumbers(e.target.checked));
+            }
+
+            setupMenuInteractions() {
+                document.querySelectorAll('.menu-item').forEach(menu => {
+                    menu.addEventListener('mouseenter', () => this.handleMenuHover(menu));
+                    menu.addEventListener('click', (e) => e.stopPropagation());
+                });
+
+                document.querySelectorAll('.dropdown-item').forEach(item => {
+                    item.addEventListener('click', (e) => {
+                        const action = e.target.dataset.action;
+                        if (action) this.handleMenuAction(action);
+                    });
+                });
+
+                document.addEventListener('click', () => {
+                    document.querySelectorAll('.dropdown').forEach(dropdown => {
+                        dropdown.style.display = 'none';
+                    });
+                });
+
+                document.querySelectorAll('.sub-menus .dropdown-item').forEach(item => {
+                    item.addEventListener('click', (e) => {
+                        e.stopPropagation();
+                        const submenuDropdown = item.querySelector('.dropdown');
+                        if (submenuDropdown) {
+                            submenuDropdown.style.display = submenuDropdown.style.display === 'block' ? 'none' : 'block';
+                        }
+                    });
+                });
+            }
+
+            setupToolbarListeners() {
+                document.querySelectorAll('[data-command]').forEach(button => {
+                    button.addEventListener('click', () => this.formatText(button.dataset.command));
+                });
+
+                this.fontSelect.addEventListener('change', () => 
+                    this.formatText('fontName', this.fontSelect.value));
+
+                this.textColor.addEventListener('input', () => 
+                    this.formatText('foreColor', this.textColor.value));
+
+                this.highlightColor.addEventListener('input', () => 
+                    this.formatText('hiliteColor', this.highlightColor.value));
+            }
+
+            formatText(command, value = null) {
+                document.execCommand(command, false, value);
+                this.pushHistory();
+            }
+
+            handleMenuHover(menu) {
+                document.querySelectorAll('.dropdown').forEach(dropdown => {
+                    if (dropdown !== menu.querySelector('.dropdown')) {
+                        dropdown.style.display = 'none';
+                    }
+                });
+                const dropdown = menu.querySelector('.dropdown');
+                if (dropdown) dropdown.style.display = 'block';
+            }
+
+            handleMenuAction(action) {
+                switch(action) {
+                    case 'new': this.newFile(); break;
+                    case 'open': document.getElementById('fileInput').click(); break;
+                    case 'exp-txt': this.exportFileTXT(); break;
+                    case 'exp-html': this.exportFileHTML(); break;
+                    case 'undo': this.undo(); break;
+                    case 'redo': this.redo(); break;
+                    case 'find': this.toggleFindReplace(); break;
+                    case 'theme-dark': this.setTheme('dark'); break;
+                    case 'theme-light': this.setTheme('light'); break;
+                }
+            }
+
+            newFile() {
+                this.editor.innerHTML = ``;
+                this.currentFile = 'untitled.txt';
+                this.fileNameDisplay.textContent = 'untitled.txt';
+                this.updateLineNumbers();
+            }
+
+            async handleFileImport(event) {
+                const file = event.target.files[0];
+                if (file) {
+                    this.currentFile = file.name;
+                    this.fileNameDisplay.textContent = file.name;
+                    this.editor.innerHTML = await file.text();
+                    this.updateLineNumbers();
+                }
+            }
+
+            exportFileTXT() {
+                const blob = new Blob([this.editor.innerText], { type: 'text/plain' });
+                const url = URL.createObjectURL(blob);
+                const a = document.createElement('a');
+                a.href = url;
+                a.download = this.currentFile;
+                a.click();
+                URL.revokeObjectURL(url);
+            }
+
+            exportFileHTML() {
+                const htmlContent = `<!DOCTYPE html><html><head><meta charset="UTF-8"></head><body>${this.editor.innerHTML}</body></html>`;
+                const blob = new Blob([htmlContent], { type: 'text/html' });
+                const url = URL.createObjectURL(blob);
+                const a = document.createElement('a');
+                a.href = url;
+                a.download = this.currentFile.replace('.txt', '.html');
+                a.click();
+                URL.revokeObjectURL(url);
+            }
+
+            pushHistory() {
+                this.history = this.history.slice(0, this.historyIndex + 1);
+                this.history.push(this.editor.innerHTML);
+                this.historyIndex++;
+            }
+
+            undo() {
+                if (this.historyIndex > 0) {
+                    this.historyIndex--;
+                    this.editor.innerHTML = this.history[this.historyIndex];
+                    this.updateLineNumbers();
+                }
+            }
+
+            redo() {
+                if (this.historyIndex < this.history.length - 1) {
+                    this.historyIndex++;
+                    this.editor.innerHTML = this.history[this.historyIndex];
+                    this.updateLineNumbers();
+                }
+            }
+
+            toggleLineNumbers(visible) {
+                this.lineNumbers.style.display = visible ? 'block' : 'none';
+                localStorage.setItem('lineNumbers', visible);
+            }
+
+            setTheme(theme) {
+                document.body.classList.toggle('light-theme', theme === 'light');
+                localStorage.setItem('editorTheme', theme);
+            }
+
+            updateLineNumbers() {
+                const lines = this.editor.innerText.split('\n');
+                this.lineNumbers.innerHTML = lines.map((_, i) => i + 1).join('<br>');
+            }
+
+            updateCurrentLinePosition() {
+                const selection = window.getSelection();
+                if (!selection.rangeCount) return;
+
+                const range = selection.getRangeAt(0);
+                const { top } = range.getBoundingClientRect();
+                const editorTop = this.editor.getBoundingClientRect().top;
+                this.currentLine.style.top = `${top - editorTop + this.editor.scrollTop}px`;
+            }
+
+            restoreSettings() {
+                const theme = localStorage.getItem('editorTheme') || 'dark';
+                this.setTheme(theme);
+                const lineNumbers = localStorage.getItem('lineNumbers') !== 'false';
+                this.lineNumbersToggle.checked = lineNumbers;
+                this.toggleLineNumbers(lineNumbers);
+            }
+
+            toggleFindReplace() {
+                if (this.findReplacePopup.style.display === 'none' || this.findReplacePopup.style.display === '') {
+                    this.findReplacePopup.style.display = 'flex';
+                    this.findInput.focus();
+                } else {
+                    this.findReplacePopup.style.display = 'none';
+                }
+            }
+
+            handleKeyPress(e) {
+                const ctrl = e.ctrlKey || e.metaKey;
+                if (ctrl) {
+                    switch (e.key.toLowerCase()) {
+                        case 's': e.preventDefault(); this.exportFileTXT(); break;
+                        case 'z': e.preventDefault(); this.undo(); break;
+                        case 'y': e.preventDefault(); this.redo(); break;
+                        case 'f': e.preventDefault(); this.toggleFindReplace(); break;
+                    }
+                }
+            }
+
+            updateMatches() {
+                const searchText = this.findInput.value;
+                if (!searchText) {
+                    this.matches = [];
+                    this.currentMatchIndex = -1;
+                    this.clearHighlights();
+                    return;
+                }
+
+                const flags = this.matchCase.checked ? 'g' : 'gi';
+                const regex = this.wholeWord.checked ? new RegExp(`\\b${searchText}\\b`, flags) : new RegExp(searchText, flags);
+                this.matches = [];
+                let match;
+                while ((match = regex.exec(this.editor.innerText)) !== null) {
+                    this.matches.push({ start: match.index, end: match.index + match[0].length });
+                }
+
+                this.currentMatchIndex = this.matches.length > 0 ? 0 : -1;
+                this.highlightMatches();
+                this.updateMatchCount();
+            }
+
+            highlightMatches() {
+                this.clearHighlights();
+                const text = this.editor.innerText;
+                let highlightedText = '';
+                let lastIndex = 0;
+
+                this.matches.forEach((match, index) => {
+                    highlightedText += text.substring(lastIndex, match.start);
+                    const matchClass = index === this.currentMatchIndex ? 'current-match' : 'match';
+                    highlightedText += `<span class="${matchClass}">${text.substring(match.start, match.end)}</span>`;
+                    lastIndex = match.end;
+                });
+                highlightedText += text.substring(lastIndex);
+
+                this.editor.innerHTML = highlightedText;
+            }
+
+            clearHighlights() {
+                this.editor.innerHTML = this.editor.innerHTML.replace(/<span class="match">|<\/span>/g, '');
+            }
+
+            scrollToMatch() {
+                if (this.currentMatchIndex < 0 || this.currentMatchIndex >= this.matches.length) return;
+                const match = this.matches[this.currentMatchIndex];
+                const lineHeight = parseInt(window.getComputedStyle(this.editor).lineHeight, 10);
+                const linesBeforeMatch = this.editor.innerText.substring(0, match.start).split('\n').length - 1;
+                this.editor.scrollTop = linesBeforeMatch * lineHeight;
+            }
+
+            updateMatchCount() {
+                if (this.matches.length === 0) {
+                    this.matchCount.textContent = 'No matches';
+                } else {
+                    this.matchCount.textContent = `${this.currentMatchIndex + 1} of ${this.matches.length}`;
+                }
+            }
+
+            handleFindNext() {
+                if (this.matches.length === 0) return;
+                this.currentMatchIndex = (this.currentMatchIndex + 1) % this.matches.length;
+                this.scrollToMatch();
+                this.updateMatchCount();
+            }
+
+            handleFindPrev() {
+                if (this.matches.length === 0) return;
+                this.currentMatchIndex = (this.currentMatchIndex - 1 + this.matches.length) % this.matches.length;
+                this.scrollToMatch();
+                this.updateMatchCount();
+            }
+
+            handleReplace() {
+                if (this.matches.length === 0) return;
+                const match = this.matches[this.currentMatchIndex];
+                const newText = this.editor.innerText.substring(0, match.start) + this.replaceInput.value + this.editor.innerText.substring(match.end);
+                this.editor.innerText = newText;
+                this.updateMatches();
+                this.updateMatchCount();
+            }
+
+            handleReplaceAll() {
+                if (this.matches.length === 0) return;
+                let newText = this.editor.innerText;
+                for (let i = this.matches.length - 1; i >= 0; i--) {
+                    const match = this.matches[i];
+                    newText = newText.substring(0, match.start) + this.replaceInput.value + newText.substring(match.end);
+                }
+                this.editor.innerText = newText;
+                this.updateMatches();
+                this.updateMatchCount();
+            }
+
+            closeFindReplace() {
+                this.findReplacePopup.style.display = 'none';
+                this.clearHighlights();
+            }
+        }
+
+        new EnhancedTextEditor();
+    </script>
+</body>
+</html>
